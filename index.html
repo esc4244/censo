@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evaluaciones Matemática 2026</title>
+<meta name="theme-color" content="#1f4e79">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{--bg:#f4f6fa;--card:#fff;--ink:#1c2533;--muted:#6b7686;--brand:#1f4e79;--ok:#1e8e3e;--off:#b8bfca;--line:#e3e7ee}
+  @media (prefers-color-scheme:dark){:root{--bg:#121722;--card:#1b2230;--ink:#e8edf5;--muted:#9aa5b5;--brand:#6fa8dc;--ok:#5cc87a;--off:#4a5363;--line:#2a3344}}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:var(--brand);color:#fff;padding:22px 16px}
+  header .wrap{max-width:900px;margin:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header img{width:48px;height:48px;border-radius:10px}
+  h1{font-size:1.4rem;margin:0}
+  header p{margin:2px 0 0;opacity:.85;font-size:.9rem}
+  main{max-width:900px;margin:22px auto;padding:0 16px}
+  .bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;color:var(--muted);font-size:.85rem}
+  button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:8px}
+  button.install{background:var(--brand);color:#fff;border:none;display:none}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px}
+  .year{font-size:2rem;font-weight:800;color:var(--brand)}
+  .name{font-size:.85rem;color:var(--muted);word-break:break-all}
+  .btn{display:block;text-align:center;text-decoration:none;padding:11px;border-radius:9px;font-weight:600}
+  .on .btn{background:var(--ok);color:#fff}
+  .off{opacity:.75}
+  .off .btn{background:transparent;color:var(--muted);border:1px dashed var(--off);cursor:not-allowed}
+  .msg{padding:30px;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <img src="icon-192.png" alt="">
+  <div><h1>Evaluaciones de Matemática 2026</h1><p>Escuela Nº 4-244 Griselda Guillén</p></div>
+</div></header>
+<main>
+  <div class="bar">
+    <span id="estado">Cargando…</span>
+    <span><button class="install" id="instalar">Instalar acceso directo</button> <button id="recargar">Actualizar</button></span>
+  </div>
+  <div class="grid" id="lista"></div>
+</main>
+<script>
+// Planilla de control (columna A = casilla "Visible")
+const SHEET_ID = "1BN4nCVP-25S8CNkmVO8YLFoWGeON7DRomTjwKrzB0ts";
+const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&headers=1`;
+
+function parseCSV(t){
+  const rows=[];let row=[],cur="",q=false;
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c=='"'){if(t[i+1]=='"'){cur+='"';i++}else q=false}else cur+=c}
+    else if(c=='"')q=true;else if(c==','){row.push(cur);cur=""}
+    else if(c=='\n'){row.push(cur);rows.push(row);row=[];cur=""}else if(c!='\r')cur+=c}
+  if(cur||row.length){row.push(cur);rows.push(row)}
+  return rows;
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const preview=u=>{const m=u.match(/\/d\/([\w-]+)/);return m?`https://drive.google.com/file/d/${m[1]}/preview`:u};
+
+async function cargar(){
+  const est=document.getElementById("estado"), lista=document.getElementById("lista");
+  est.textContent="Actualizando…";
+  try{
+    const r=await fetch(CSV_URL+"&t="+Date.now(),{cache:"no-store"});
+    if(!r.ok) throw new Error(r.status);
+    const filas=parseCSV(await r.text()).slice(1).filter(f=>f[3]);
+    lista.innerHTML=filas.map(([vis,anio,arch,url])=>{
+      const on=String(vis).trim().toUpperCase()==="TRUE";
+      return `<div class="card ${on?"on":"off"}">
+        <div class="year">${esc(anio)} año</div>
+        <div class="name">${esc(arch.replace(/\.pdf$/i,""))}</div>
+        ${on?`<a class="btn" href="${esc(preview(url))}" target="_blank" rel="noopener">Abrir evaluación (PDF)</a>`
+            :`<span class="btn">🔒 No disponible</span>`}
+      </div>`}).join("") || '<div class="msg">No hay evaluaciones cargadas.</div>';
+    est.textContent="Actualizado: "+new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});
+  }catch(e){
+    est.textContent="No se pudo leer la planilla (revisá la conexión).";
+  }
+}
+document.getElementById("recargar").onclick=cargar;
+cargar(); setInterval(cargar,60000);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)cargar()});
+
+// Acceso directo / instalación (Chrome y Edge)
+let evt; const bi=document.getElementById("instalar");
+addEventListener("beforeinstallprompt",e=>{e.preventDefault();evt=e;bi.style.display="inline-block"});
+bi.onclick=async()=>{if(!evt)return;evt.prompt();await evt.userChoice;evt=null;bi.style.display="none"};
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+</script>
+</body>
+</html>
